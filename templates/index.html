@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+   <head>
+      <title>{{ title }}</title>
+      <meta http-equiv="refresh" content="300" />
+      <link rel="stylesheet" href="../static/style.css/">
+   </head>
+   <body onload='addListeners();'>
+      <h1>Patrol Robot</h1>
+      <h2>The date and time on the server is: {{ time }}</h2>
+      <a href="/motor/stop" class="button">STOP!</a>
+      <a href="/motor/forward" class="button">Forward</a>
+      <br />
+      <a href="/motor/anticlockwise" class="button">Anticlockwise rotation</a>
+      <a href="/motor/clockwise" class="button">Clockwise rotation</a>
+      <br />
+      <a href="/motor/left" class="button">Left corner</a>
+      <a href="/motor/right" class="button">Right corner</a>
+      <br />
+      <a href="/motor/backward" class="button">Backward</a>
+      <br />
+      <iframe src="http://192.168.0.99" title="Patrol Cam" width="875" height="680"></iframe>
+      <br />
+      <a href="/motor/shutdown" class="button">SHUTDOWN!</a>
+   </body>
+</html>
