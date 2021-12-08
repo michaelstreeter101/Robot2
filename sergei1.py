@@ -1,13 +1,14 @@
 '''
 Original author: MWS
 Creation date: 2021-10-20
-Purpose: Serve a web page, control GPIO
+Purpose: Serve a web page, control GPIO (Serial0)
 '''
 import datetime
 import time
 from pysabertooth import Sabertooth
 from flask import Flask, render_template
 import os
+from multiprocessing import Process, Pipe
 
 '''
 Packetized Serial (Down, Down, Up, Up, Up, Up) uses TTL level 
@@ -45,14 +46,21 @@ def hello():
     }
     return render_template('index.html', **templateData)
 
-
-@app.route('/<deviceName>/<action>')
-def action(deviceName, action):
-    if deviceName == 'motor':
-        match action:
-            case 'stop':
-                print('saber.stop()')
-                saber.stop()
+def reader_proc(pipe):
+    '''
+    Original author: MWS
+    Creation date: 20211207
+    Purpose: to improve performance, the reader_proc will spawn in 
+    a different process and read messages off a pipe. 
+    Commands will be sent to the Sabertooth asyncronously and 
+    independently from the process running the flask web page front end.
+    '''
+    p_output, p_input = pipe
+    p_input.close()
+    while True:
+        msg = p_output.recv()
+        print(msg)
+        match msg:
             case 'forward':
                 forward()
             case 'anticlockwise':
@@ -66,7 +74,31 @@ def action(deviceName, action):
             case 'backward':
                 backward()
             case 'shutdown':
+                break
+    
+@app.route('/<deviceName>/<action>')
+def action(deviceName, action):
+    msg = 'DONE'
+    if deviceName == 'motor':
+        match action:
+            case 'stop':
+                print('saber.stop()')
+                saber.stop()
+            case 'forward':
+                msg = 'forward'
+            case 'anticlockwise':
+                msg = 'anticlockwise'
+            case 'clockwise':
+                msg = 'clockwise'
+            case 'left':
+                msg = 'left'
+            case 'right':
+                msg = 'right'
+            case 'backward':
+                msg = 'backward'
+            case 'shutdown':
                 shutdown()
+        p_input.send(msg)
            
                
 #      actuator = LED
@@ -146,4 +178,8 @@ def shutdown():
   
 if __name__ == '__main__':
     print('__main__')
+    p_output, p_input = Pipe()
+    reader_p = Process(target=reader_proc, args=((p_output,p_input),))
+    reader_p.daemon = True
+    reader_p.start()
     app.run(host='0.0.0.0', port=80, debug=True)
