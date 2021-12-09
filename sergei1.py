@@ -9,6 +9,7 @@ from pysabertooth import Sabertooth
 from flask import Flask, render_template
 import os
 from multiprocessing import Process, Pipe
+from flask_caching import Cache
 
 '''
 Packetized Serial (Down, Down, Up, Up, Up, Up) uses TTL level 
@@ -34,7 +35,15 @@ See documentation.
 saber = Sabertooth('/dev/serial0', baudrate=9600, address=128, timeout=0.1)
 saber.stop()
 
+config = {
+    "DEBUG": True,
+    "CACHE_TYPE": "SimpleCache",
+    "CACHE_DEFAULT_TIMEOUT": 28800 # 8 hours 
+}
+
 app = Flask(__name__)
+app.config.from_mapping(config)
+cache = Cache(app)
 @app.route('/')
 
 def hello():
