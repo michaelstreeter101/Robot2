@@ -2,11 +2,18 @@
 Original author: MWS
 Creation date: 2021-10-20
 Purpose: Serve a web page, control GPIO (Serial0)
+Note: execute using "sudo python app.py", NOT "sudo flask run"!
+Changes: 
+Dec 30, 2021 Implement AJAX instead of HTTP GET  @michaelstreeter101
+Dec  9, 2021 Add caching …   @michaelstreeter101
+Dec  8, 2021 Add multiprocessing …   @michaelstreeter101 
+Dec  7, 2021 Add WiFi camera video as an iframe on the home page.    @michaelstreeter101
+Dec  7, 2021 Initial commit  @michaelstreeter101
 '''
 import datetime
 import time
 from pysabertooth import Sabertooth
-from flask import Flask, render_template
+from flask import Flask, render_template, jsonify, request
 import os
 from multiprocessing import Process, Pipe
 from flask_caching import Cache
@@ -21,7 +28,7 @@ If using a true RS-232 device like a Raspberry Pi GPIO14 UART_TXD0,
 it is necessary to use a level converter to shift the -3V Raspberry Pi 
 levels to the 0v-5v TTL levels the Sabertooth is expecting. 
 Packetized serial uses an address byte to select the target device. 
-See documentation.
+See Sabertooth documentation.
 '''
 
 #import RPi.GPIO as GPIO
@@ -44,13 +51,12 @@ config = {
 app = Flask(__name__)
 app.config.from_mapping(config)
 cache = Cache(app)
-@app.route('/')
 
-def hello():
+@app.route('/')
+def index():
     now = datetime.datetime.now()
     timeString = now.strftime('%Y-%m-%d %H:%M')
     templateData = {
-        'title' : 'Patrol Robot',
         'time': timeString
     }
     return render_template('index.html', **templateData)
@@ -64,6 +70,7 @@ def reader_proc(pipe):
     Commands will be sent to the Sabertooth asyncronously and 
     independently from the process running the flask web page front end.
     '''
+    print("reader_proc()")
     p_output, p_input = pipe
     p_input.close()
     while True:
@@ -84,9 +91,10 @@ def reader_proc(pipe):
                 backward()
             case 'shutdown':
                 break
-    
+
 @app.route('/<deviceName>/<action>')
 def action(deviceName, action):
+    print("action")
     msg = 'DONE'
     if deviceName == 'motor':
         match action:
@@ -107,7 +115,9 @@ def action(deviceName, action):
                 msg = 'backward'
             case 'shutdown':
                 shutdown()
-        p_input.send(msg)
+        if msg != 'DONE':
+            p_input.send(msg)
+        return jsonify(result='OK')
            
                
 #      actuator = LED
@@ -120,14 +130,14 @@ def action(deviceName, action):
 #   if action == 'off':
 #      GPIO.output(actuator, GPIO.LOW)
 
-    now = datetime.datetime.now()
-    timeString = now.strftime('%Y-%m-%d %H:%M')
+    # now = datetime.datetime.now()
+    # timeString = now.strftime('%Y-%m-%d %H:%M')
 
-    templateData = {
-        'title' : 'Patrol Robot',
-        'time': timeString
-    }
-    return render_template('index.html', **templateData)
+    # templateData = {
+        # 'title' : 'Patrol Robot',
+        # 'time': timeString
+    # }
+    # return render_template('index.html', **templateData)
 
 def forward():
     print("function forward")
