@@ -31,21 +31,13 @@ Packetized serial uses an address byte to select the target device.
 See Sabertooth documentation.
 '''
 
-#import RPi.GPIO as GPIO
-# GPIO.setmode(GPIO.BCM)
-# GPIO.setwarnings(False)
-# LED = 2
-# GPIO.setup(LED, GPIO.OUT)
-# GPIO.output(LED, GPIO.LOW)
-# import serial
-
 saber = Sabertooth('/dev/serial0', baudrate=9600, address=128, timeout=0.1)
 saber.stop()
 
 config = {
-    "DEBUG": True,
-    "CACHE_TYPE": "SimpleCache",
-    "CACHE_DEFAULT_TIMEOUT": 28800 # 8 hours 
+    'DEBUG': True,
+    'CACHE_TYPE': 'SimpleCache',
+    'CACHE_DEFAULT_TIMEOUT': 28800 # 8 hours 
 }
 
 app = Flask(__name__)
@@ -70,12 +62,12 @@ def reader_proc(pipe):
     Commands will be sent to the Sabertooth asyncronously and 
     independently from the process running the flask web page front end.
     '''
-    print("reader_proc()")
+    print("Starting reader_proc()")
     p_output, p_input = pipe
     p_input.close()
     while True:
         msg = p_output.recv()
-        print(msg)
+        print(f'reader_proc: {msg}')
         match msg:
             case 'forward':
                 forward()
@@ -94,13 +86,23 @@ def reader_proc(pipe):
 
 @app.route('/<deviceName>/<action>')
 def action(deviceName, action):
-    print("action")
-    msg = 'DONE'
+    '''
+    Original author: MWS
+    Creation date: 20211207
+    Purpose: process movement requests from the Internet. 
+    Assume the input is invalid; only permit well-formed messages; 
+    write a message on the pipe to call the appropriate function;
+    do not simply write the input from the Internet!
+    '''
+    print('action(', end='')
+    msg = 'invalid'
     if deviceName == 'motor':
+        print('motor, ', end='')
         match action:
             case 'stop':
-                print('saber.stop()')
+                # NB: stop right now, do not put a message on the pipe.
                 saber.stop()
+                msg = 'stop'
             case 'forward':
                 msg = 'forward'
             case 'anticlockwise':
@@ -114,91 +116,67 @@ def action(deviceName, action):
             case 'backward':
                 msg = 'backward'
             case 'shutdown':
-                shutdown()
-        if msg != 'DONE':
+                # NB: shutdown immediately
+                shutdown() # exit point
+        if msg != 'invalid':
+            print(f'{msg})')
             p_input.send(msg)
         return jsonify(result='OK')
-           
-               
-#      actuator = LED
-#      print(f'{actuator}')
-#   else:
-#      actuator = 2
-   
-#   if action == 'on':
-#      GPIO.output(actuator, GPIO.HIGH)
-#   if action == 'off':
-#      GPIO.output(actuator, GPIO.LOW)
-
-    # now = datetime.datetime.now()
-    # timeString = now.strftime('%Y-%m-%d %H:%M')
-
-    # templateData = {
-        # 'title' : 'Patrol Robot',
-        # 'time': timeString
-    # }
-    # return render_template('index.html', **templateData)
 
 def forward():
-    print("function forward")
+    print('forward()')
     saber.driveBoth(-16, -16)
     time.sleep(1)
     saber.stop()
 
-
 def backward():
-    print("function backward")
+    print('backward()')
     saber.driveBoth(16, 16)
     time.sleep(1)
     saber.stop()
 
-
 def clockwise():
-    print("function clockwise")
-    saber.drive(1, 16);
-    saber.drive(2, -16);
+    print('clockwise()')
+    saber.drive(1, 16)
+    saber.drive(2, -16)
     time.sleep(1)
     saber.stop()
 
 def anticlockwise():
-    print("function anticlockwise")
-    saber.drive(1, -16);
-    saber.drive(2, 16);
+    print('anticlockwise()')
+    saber.drive(1, -16)
+    saber.drive(2, 16)
     time.sleep(1)
     saber.stop()
 
 def right():
-    print("function right")
-    saber.drive(1, -16);
-    saber.drive(2, -36);
+    print("right()")
+    saber.drive(1, -16)
+    saber.drive(2, -36)
     time.sleep(3)
     saber.stop()
 
 def left():
-    print("function left")
-    saber.drive(1, -36);
-    saber.drive(2, -16);
+    print('left()')
+    saber.drive(1, -36)
+    saber.drive(2, -16)
     time.sleep(3)
     saber.stop()
 
 def shutdown():
     print('Shutting down...')
-    os.system("sudo shutdown -P now")
-    
-# /*
-# stop
-# forward
-# back
-# clockwise rotation
-# anticlockwise rotation
-# right corner
-# left corner
-# */
-  
-if __name__ == '__main__':
-    print('__main__')
+    saber.stop()
+    os.system('sudo shutdown -P now')
+
+if __name__ == '__main__' or __name__ == 'app':
+    print(f'Starting {__name__=}')
+
+    # Create a separate process to drive the robot.
     p_output, p_input = Pipe()
     reader_p = Process(target=reader_proc, args=((p_output,p_input),))
     reader_p.daemon = True
     reader_p.start()
-    app.run(host='0.0.0.0', port=80, debug=True)
+
+    # this process serves the web page.
+    if __name__ == '__main__':
+        app.run(host='192.168.0.45', port=80, debug=True)
