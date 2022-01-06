@@ -1,0 +1,42 @@
+The following commands were used to set up the Raspberry Pi development and production environments, starting from the RPi image downloaded from https://www.raspberrypi.com/software/
+
+    5  sudo apt update
+    6  sudo apt dist-upgrade
+    7  sudo apt autoremove
+   13  mkdir Projects
+   14  cd Projects
+   15  wget https://www.python.org/ftp/python/3.10.0/Python-3.10.0.tgz
+   16  tar -zxvf Python-3.10.0.tgz
+   30  sudo apt install build-essential zlib1g-dev libncurses5-dev libgdbm-dev libnss3-dev libssl-dev libreadline-dev libffi-dev wget
+
+   50  cd Python-3.10.0/
+   51  ./configure --enable-optimizations
+   52  sudo make altinstall
+
+   24  cd /usr/bin
+   25  sudo rm python
+   26  sudo ln -s /usr/local/bin/python3.10 python
+
+   59  /usr/local/bin/python3.10 -m pip install --upgrade pip
+
+   65  cd ~/Projects
+   47  mkdir Robot2
+   48  cd Robot2/
+   49  sudo pip install virtualenv
+
+   68  pip install pysabertooth
+   69  pip install RPi
+   71  pip install RPi.GPIO
+   72  pip install wheel
+   77  pip install Flask
+   85  pip install Flask-Caching
+
+   88  sudo pip install pysabertooth
+   89  sudo pip install Flask-Caching
+
+   94  cd ~/Projects/
+   99  git clone https://www.github.com/michaelstreeter101/Robot2
+
+  120  cd ~/Projects/Robot2/
+
+  133  sudo python app.py 

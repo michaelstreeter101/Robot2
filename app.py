@@ -4,9 +4,10 @@ Creation date: 2021-10-20
 Purpose: Serve a web page, control GPIO (Serial0)
 Note: execute using "sudo python app.py", NOT "sudo flask run"!
 Changes: 
+Jan 04, 2022 Tidy up source code and add some diagnostic output	@michaelstreeter101
 Dec 30, 2021 Implement AJAX instead of HTTP GET  @michaelstreeter101
-Dec  9, 2021 Add caching …   @michaelstreeter101
-Dec  8, 2021 Add multiprocessing …   @michaelstreeter101 
+Dec  9, 2021 Add caching   @michaelstreeter101
+Dec  8, 2021 Add multiprocessing   @michaelstreeter101 
 Dec  7, 2021 Add WiFi camera video as an iframe on the home page.    @michaelstreeter101
 Dec  7, 2021 Initial commit  @michaelstreeter101
 '''
