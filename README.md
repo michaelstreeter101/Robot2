@@ -13,3 +13,5 @@ When finished...
 either click on the "shutdown!" button in the web app, or use the following commands at the ssh prompt:
 * deactivate
 * sudo shutdown -P now
+
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
