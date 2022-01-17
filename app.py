@@ -4,7 +4,8 @@ Creation date: 2021-10-20
 Purpose: Serve a web page, control GPIO (Serial0)
 Note: execute using 'sudo python app.py', NOT 'sudo flask run'!
 Changes: 
-Jan 15, 2022 Improve proc reader: create a buffer of several commands.
+Jan 17, 2022 Improve reader_process so it reads all available messages off the pipe, not one each poll/check loop
+Jan 15, 2022 Improve reader_process so it creates a buffer of several commands.
 Jan 04, 2022 Tidy up source code and add some diagnostic output	@michaelstreeter101
 Dec 30, 2021 Implement AJAX instead of HTTP GET  @michaelstreeter101
 Dec  9, 2021 Add caching   @michaelstreeter101
@@ -72,39 +73,39 @@ def reader_process(pipe):
                 command off the buffer.  
                 Repeat forever.'''
     print('reader_process()')
-    msg: str = ''
-    cmd: str = ''
+    msg: str = '' # message read from the pipe
+    cmd: str = '' # command currently being executed
     cmd_buffer: list[str] = ['stop'] # a list of commands waiting to be executed by the robot (limited to 3)
-    cmd_expiry: datetime = datetime.datetime.now() # after executing a command, this is when to stop.
+    cmd_expiry: datetime = datetime.datetime.now() # after beginning execution of a command, this is when to stop.
     one_second: datetime.timedelta = datetime.timedelta(0,1) # days, seconds; default time to wait before terminating a command
     p_output, p_input = pipe
     p_input.close()
     while True:
 
-        if p_output.poll(): # poll pipe
+        while p_output.poll(): # poll pipe
             msg = p_output.recv() # read pipe
-            print(f'reader_process: {msg}') # TODO: is this dangerous? msg is from the Internet. Possible injection, buffer overrun, or other vulnerability!
+            print(f'reader_process: read pipe {msg=}') # TODO: is this dangerous? msg is from the Internet. Possible injection, buffer overrun, or other vulnerability!
 
             if msg == 'stop':
                 saber.stop() # stop Sabertooth/motors
                 cmd_buffer = ['stop'] # clear buffer
 
             else: # any other command
-                cmd_buffer = cmd_buffer[0:1]
+                cmd_buffer = cmd_buffer[-1:] # truncate cmd_buffer to only the last element of the list
                 cmd_buffer.append(msg) # append buffer
 
-        #if there's a command waiting in the buffer OR if the last command was not stop, we may meed to do something.
-        #print(f'{msg=} {msg_buffer=}')
+        # if there's a command waiting in the buffer OR if the last command was not stop, we may meed to do something.
+        # print(f'{msg=} {msg_buffer=}')
         if len(cmd_buffer) > 0 or cmd != 'stop': # buffer empty?
-            print(f'{cmd_buffer=} {cmd=}')
+            #print(f'reader_process: buffer empty? {cmd_buffer=} {len(cmd_buffer)=} {cmd=} {cmd_expiry=} {datetime.datetime.now()=}')
             if cmd_expiry <= datetime.datetime.now(): # command expired?
+                print(f'reader_process: command expired. Before: {cmd=} {cmd_buffer=}')
                 if len(cmd_buffer) == 0:
                     cmd = 'stop'
                 else:
-                    print(f'Before: {cmd=} {cmd_buffer=}')
                     cmd = cmd_buffer[0]
-                    cmd_buffer = cmd_buffer[1:]
-                    print(f'After: {cmd=} {cmd_buffer=}')
+                    cmd_buffer = cmd_buffer[1:1]
+                print(f'reader_process: command expired. After: {cmd=} {cmd_buffer=}')
                 cmd_expiry = datetime.datetime.now() + one_second
                 exec_cmd(cmd)
     return
@@ -119,6 +120,7 @@ def exec_cmd(cmd: str):
     match cmd:
         case 'stop':
             saber.stop()
+            print(f'exec_cmd: stop')
         case 'forward':
             forward()
         case 'anticlockwise':
@@ -177,27 +179,27 @@ def forward():
     print('forward()')
     saber.driveBoth(-16, -16)
     time.sleep(1)
-#    saber.stop()
+    saber.stop()
 
 def backward():
     print('backward()')
     saber.driveBoth(16, 16)
     time.sleep(1)
-#    saber.stop()
+    saber.stop()
 
 def clockwise():
     print('clockwise()')
     saber.drive(1, 16)
     saber.drive(2, -16)
     time.sleep(1)
-#    saber.stop()
+    saber.stop()
 
 def anticlockwise():
     print('anticlockwise()')
     saber.drive(1, -16)
     saber.drive(2, 16)
     time.sleep(1)
-#    saber.stop()
+    saber.stop()
 
 def right():
     print('right()')
