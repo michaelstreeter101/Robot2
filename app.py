@@ -4,6 +4,7 @@ Creation date: 2021-10-20
 Purpose: Serve a web page, control GPIO (Serial0)
 Note: execute using "sudo python app.py", NOT "sudo flask run"!
 Changes: 
+Jan 08, 2022 Fix shutdown bug
 Jan 04, 2022 Tidy up source code and add some diagnostic output	@michaelstreeter101
 Dec 30, 2021 Implement AJAX instead of HTTP GET  @michaelstreeter101
 Dec  9, 2021 Add caching   @michaelstreeter101
@@ -83,7 +84,7 @@ def reader_proc(pipe):
             case 'backward':
                 backward()
             case 'shutdown':
-                break
+                shutdown() # exit point
 
 @app.route('/<deviceName>/<action>')
 def action(deviceName, action):
@@ -117,8 +118,7 @@ def action(deviceName, action):
             case 'backward':
                 msg = 'backward'
             case 'shutdown':
-                # NB: shutdown immediately
-                shutdown() # exit point
+                msg = 'shutdown'
         if msg != 'invalid':
             print(f'{msg})')
             p_input.send(msg)
@@ -180,4 +180,6 @@ if __name__ == '__main__' or __name__ == 'app':
 
     # this process serves the web page.
     if __name__ == '__main__':
-        app.run(host='192.168.0.45', port=80, debug=True)
+        #print('tethered to Gaslaxy S8 phone: sudo flask run --host=192.168.43.152 --port=80')
+        print('connected to Virgin Media box: sudo flask run --host=192.168.0.47 --port=80')
+        app.run(host='192.168.0.47', port=80, debug=True)
