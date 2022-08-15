@@ -2,9 +2,14 @@
 Original author: MWS
 Creation date: 2021-10-20
 Purpose: Serve a web page, control GPIO (Serial0)
-Note: execute using "sudo python app.py", NOT "sudo flask run"!
+Note: execute using 'sudo python app.py', NOT 'sudo flask run'!
 Changes: 
+<<<<<<< HEAD
 Jan 08, 2022 Fix shutdown bug
+=======
+Jan 17, 2022 Improve reader_process so it reads all available messages off the pipe, not one each poll/check loop
+Jan 15, 2022 Improve reader_process so it creates a buffer of several commands.
+>>>>>>> a312855ae322e198187506ce07f4b67f7f687b3d
 Jan 04, 2022 Tidy up source code and add some diagnostic output	@michaelstreeter101
 Dec 30, 2021 Implement AJAX instead of HTTP GET  @michaelstreeter101
 Dec  9, 2021 Add caching   @michaelstreeter101
@@ -15,6 +20,7 @@ Dec  7, 2021 Initial commit  @michaelstreeter101
 import datetime
 import time
 from pysabertooth import Sabertooth
+#from mock_pysabertooth import Sabertooth
 from flask import Flask, render_template, jsonify, request
 import os
 from multiprocessing import Process, Pipe
@@ -47,7 +53,7 @@ app.config.from_mapping(config)
 cache = Cache(app)
 
 @app.route('/')
-def index():
+def index(): 
     now = datetime.datetime.now()
     timeString = now.strftime('%Y-%m-%d %H:%M')
     templateData = {
@@ -55,36 +61,85 @@ def index():
     }
     return render_template('index.html', **templateData)
 
-def reader_proc(pipe):
-    '''
-    Original author: MWS
-    Creation date: 20211207
-    Purpose: to improve performance, the reader_proc will spawn in 
-    a different process and read messages off a pipe. 
-    Commands will be sent to the Sabertooth asyncronously and 
-    independently from the process running the flask web page front end.
-    '''
-    print("Starting reader_proc()")
+def reader_process(pipe):
+    '''Original author: MWS
+       Creation date: 20220111
+       Purpose: to improve performance, the reader_proc will spawn in 
+                a different process and read messages off a pipe. 
+                Commands will be sent to the Sabertooth asyncronously and 
+                independently from the process running the flask web page front end.
+
+                Poll pipe returns true if there's a command on the pipe
+                (if there is, read the pipe and add the command to the buffer,
+                unless it's stop, in which case stop the motor and clear the
+                command buffer); otherwise, if a command is being executed
+                keep checking until the time has expired, then pull the next
+                command off the buffer.  
+                Repeat forever.'''
+    print('reader_process()')
+    msg: str = '' # message read from the pipe
+    cmd: str = '' # command currently being executed
+    cmd_buffer: list[str] = ['stop'] # a list of commands waiting to be executed by the robot (limited to 3)
+    cmd_expiry: datetime = datetime.datetime.now() # after beginning execution of a command, this is when to stop.
+    one_second: datetime.timedelta = datetime.timedelta(0,1) # days, seconds; default time to wait before terminating a command
     p_output, p_input = pipe
     p_input.close()
     while True:
-        msg = p_output.recv()
-        print(f'reader_proc: {msg}')
-        match msg:
-            case 'forward':
-                forward()
-            case 'anticlockwise':
-                anticlockwise()
-            case 'clockwise':
-                clockwise()
-            case 'left':
-                left()
-            case 'right':
-                right()
-            case 'backward':
-                backward()
-            case 'shutdown':
-                shutdown() # exit point
+
+        while p_output.poll(): # poll pipe
+            msg = p_output.recv() # read pipe
+            print(f'reader_process: read pipe {msg=}') # TODO: is this dangerous? msg is from the Internet. Possible injection, buffer overrun, or other vulnerability!
+
+            if msg == 'stop':
+                saber.stop() # stop Sabertooth/motors
+                cmd_buffer = ['stop'] # clear buffer
+
+            else: # any other command
+                cmd_buffer = cmd_buffer[-1:] # truncate cmd_buffer to only the last element of the list
+                cmd_buffer.append(msg) # append buffer
+
+        # if there's a command waiting in the buffer OR if the last command was not stop, we may meed to do something.
+        # print(f'{msg=} {msg_buffer=}')
+        if len(cmd_buffer) > 0 or cmd != 'stop': # buffer empty?
+            #print(f'reader_process: buffer empty? {cmd_buffer=} {len(cmd_buffer)=} {cmd=} {cmd_expiry=} {datetime.datetime.now()=}')
+            if cmd_expiry <= datetime.datetime.now(): # command expired?
+                print(f'reader_process: command expired. Before: {cmd=} {cmd_buffer=}')
+                if len(cmd_buffer) == 0:
+                    cmd = 'stop'
+                else:
+                    cmd = cmd_buffer[0]
+                    cmd_buffer = cmd_buffer[1:1]
+                print(f'reader_process: command expired. After: {cmd=} {cmd_buffer=}')
+                cmd_expiry = datetime.datetime.now() + one_second
+                exec_cmd(cmd)
+    return
+
+def exec_cmd(cmd: str):
+    '''
+    Original author: MWS
+    Creation date: 20211207
+    Purpose: call the appropriate function, based on msg.
+    '''
+    print(f'exec_cmd({cmd=})')
+    match cmd:
+        case 'stop':
+            saber.stop()
+            print(f'exec_cmd: stop')
+        case 'forward':
+            forward()
+        case 'anticlockwise':
+            anticlockwise()
+        case 'clockwise':
+            clockwise()
+        case 'left':
+            left()
+        case 'right':
+            right()
+        case 'backward':
+            backward()
+        case 'shutdown':
+            shutdown() # exit point
+
 
 @app.route('/<deviceName>/<action>')
 def action(deviceName, action):
@@ -102,7 +157,8 @@ def action(deviceName, action):
         print('motor, ', end='')
         match action:
             case 'stop':
-                # NB: stop right now, do not put a message on the pipe.
+                # NB: stop right now, but put a message on the pipe too 
+                #     in case of buffered commands.
                 saber.stop()
                 msg = 'stop'
             case 'forward':
@@ -151,7 +207,7 @@ def anticlockwise():
     saber.stop()
 
 def right():
-    print("right()")
+    print('right()')
     saber.drive(1, -16)
     saber.drive(2, -36)
     time.sleep(3)
@@ -174,12 +230,12 @@ if __name__ == '__main__' or __name__ == 'app':
 
     # Create a separate process to drive the robot.
     p_output, p_input = Pipe()
-    reader_p = Process(target=reader_proc, args=((p_output,p_input),))
+    reader_p = Process(target=reader_process, args=((p_output,p_input),))
     reader_p.daemon = True
     reader_p.start()
 
     # this process serves the web page.
     if __name__ == '__main__':
-        #print('tethered to Gaslaxy S8 phone: sudo flask run --host=192.168.43.152 --port=80')
+        #print('tethered to Galaxy S8 phone: sudo flask run --host=192.168.43.152 --port=80')
         print('connected to Virgin Media box: sudo flask run --host=192.168.0.47 --port=80')
-        app.run(host='192.168.0.47', port=80, debug=True)
+
